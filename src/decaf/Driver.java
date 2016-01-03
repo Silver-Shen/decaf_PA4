@@ -126,7 +126,15 @@ public final class Driver {
 			pw.close();
 			return;
 		}
-
+		if (option.getLevel() == Option.Level.LEVEL5) {
+			for (FlowGraph g : graphs) {
+				g.printDUChainTo(pw);
+				pw.println();
+			}
+			pw.close();
+			return;
+		}
+		
 		MachineDescription md = new Mips();
 		md.setOutputStream(pw);
 		md.emitVTable(tr.getVtables());

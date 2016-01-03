@@ -3,7 +3,8 @@ package decaf.tac;
 import java.util.Set;
 
 import decaf.utils.MiscUtils;
-
+import java.util.ArrayList;
+import java.util.List;
 public class Tac {
 	public enum Kind {
 		ADD, SUB, MUL, DIV, MOD, NEG, LAND, LOR, LNOT, GTR, GEQ, EQU, NEQ, LEQ,
@@ -37,6 +38,13 @@ public class Tac {
 	
 	public Set<Temp> saves;
 	
+	//new included in PA4
+	public List<Tac> DU_chain;
+	public List<Integer> DU_line;
+	public boolean isDef;
+	public Tac(int bNum){
+		this.bbNum = bNum;
+	}
 	private Tac(Kind opc, Temp op0) {
 		this(opc, op0, null, null);
 	}

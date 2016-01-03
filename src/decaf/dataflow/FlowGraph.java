@@ -10,6 +10,7 @@ import java.util.Map;
 import decaf.tac.Functy;
 import decaf.tac.Tac;
 import decaf.tac.Tac.Kind;
+import decaf.tac.Temp;
 
 public class FlowGraph implements Iterable<BasicBlock> {
 
@@ -28,6 +29,8 @@ public class FlowGraph implements Iterable<BasicBlock> {
 		for (BasicBlock bb : bbs) {
 			bb.analyzeLiveness();
 		}
+		//new included
+		DUAnalyze();
 	}
 	// 去掉 Memo 记录
 	private void deleteMemo(Functy func) {
@@ -275,4 +278,203 @@ public class FlowGraph implements Iterable<BasicBlock> {
 		return functy;
 	}
 	
+	//generate DU_Chain
+	public void DUAnalyze(){
+		for (BasicBlock bb : bbs) {
+			Tac taclist = bb.tacList;
+			int lineNo = 0;//record definition line number
+			for (Tac t = taclist; t != null; t = t.next){
+				lineNo++;
+				boolean isInBlockDef = false;
+				Temp def = getDef(t);//get definition variable
+				if (def == null){
+					t.isDef = false;
+					continue;
+				}
+				t.isDef = true;
+				//if is def, ready to compute DU_chain
+				t.DU_chain = new ArrayList<Tac>();
+				t.DU_line = new ArrayList<Integer>();
+				int line = lineNo; //record use line number
+				Tac inBlockTac = t.next;
+				while (inBlockTac != null){
+					line++;					
+					if (isUse(def,inBlockTac)){
+						t.DU_chain.add(inBlockTac);
+						t.DU_line.add(new Integer(line));
+					}
+					Temp inDef = getDef(inBlockTac);
+					if (inDef==def) {//multiple def
+						isInBlockDef = true;
+						break;						
+					}
+					inBlockTac = inBlockTac.next;
+				}
+				switch (bb.endKind) {
+				case BY_BRANCH:										
+					break;
+				case BY_BEQZ:						
+				case BY_BNEZ:					
+				case BY_RETURN:					
+					if (bb.var == def){
+						Tac tt = new Tac(bb.bbNum);
+						t.DU_chain.add(tt);
+						t.DU_line.add(new Integer(-1));
+					}
+					break;
+				}		
+				for (BasicBlock bbb : bbs) bbb.isSearched=false;
+				//finish inBlock search, start outBlock search
+				if (!isInBlockDef){
+					switch (bb.endKind) {
+					case BY_BRANCH:
+						searchOutBlockUse(t, getBlock(bb.next[0]), 0);						
+						break;
+					case BY_BEQZ:						
+					case BY_BNEZ:
+						searchOutBlockUse(t, getBlock(bb.next[0]), 0);
+						searchOutBlockUse(t, getBlock(bb.next[1]), 0);
+						break;
+					case BY_RETURN:						
+						break;
+					}					
+				}
+			}
+		}
+	}
+	
+	private void searchOutBlockUse(Tac tac, BasicBlock bb, int depth) {
+		// TODO Auto-generated method stub
+		if (depth >= bbs.size() || bb.isSearched) return;
+		bb.isSearched = true;
+		Tac taclist = bb.tacList;
+		Temp def = getDef(tac);//get definition variable
+		int lineNo = 0;//record definition line number
+		for (Tac t = taclist; t != null; t = t.next){
+			lineNo++;
+			Temp inDef = getDef(t);
+			if (inDef == def) return;
+			if (isUse(def,t)){
+				tac.DU_chain.add(t);
+				tac.DU_line.add(new Integer(lineNo));
+			}			
+		}
+		switch (bb.endKind) {
+		case BY_BRANCH:
+			searchOutBlockUse(tac, getBlock(bb.next[0]), depth+1);						
+			break;
+		case BY_BEQZ:						
+		case BY_BNEZ:
+			if (bb.var == def){
+				Tac tt = new Tac(bb.bbNum);
+				tac.DU_chain.add(tt);
+				tac.DU_line.add(new Integer(-1));
+			}
+			searchOutBlockUse(tac, getBlock(bb.next[0]), depth+1);
+			searchOutBlockUse(tac, getBlock(bb.next[1]), depth+1);
+			break;
+		case BY_RETURN:	
+			if (bb.var == def){
+				Tac tt = new Tac(bb.bbNum);
+				tac.DU_chain.add(tt);
+				tac.DU_line.add(new Integer(-1));
+			}
+			break;
+		}		
+	}
+	private boolean isUse(Temp def, Tac tac) {
+		// TODO Auto-generated method stub
+		switch (tac.opc) {
+		case ADD:
+		case SUB:
+		case MUL:
+		case DIV:
+		case MOD:
+		case LAND:
+		case LOR:
+		case GTR:
+		case GEQ:
+		case EQU:
+		case NEQ:
+		case LEQ:
+		case LES:
+			/* use op1 and op2, def op0 */
+			if (tac.op1 == def || tac.op2 == def) return true;
+			break;
+		case NEG:
+		case LNOT:
+		case ASSIGN:
+		case INDIRECT_CALL:
+		case LOAD:
+			/* use op1, def op0 */
+			if (tac.op1 == def) return true;
+			break;
+		case LOAD_VTBL:
+		case DIRECT_CALL:
+		case RETURN:
+		case LOAD_STR_CONST:
+		case LOAD_IMM4:
+			/* def op0 */			
+			break;
+		case STORE:
+			/* use op0 and op1*/
+			if (tac.op1 == def || tac.op0 == def) return true;
+			break;
+		case BEQZ:
+		case BNEZ:
+		case PARM:
+			/* use op0 */
+			if (tac.op0 == def) return true;
+			break;
+		default:
+			/* BRANCH MEMO MARK PARM*/
+			break;
+		}
+		return false;
+	}
+	
+	public Temp getDef(Tac tac){
+		Temp def = null;
+		switch (tac.opc) {
+		case ADD:
+		case SUB:
+		case MUL:
+		case DIV:
+		case MOD:
+		case LAND:
+		case LOR:
+		case GTR:
+		case GEQ:
+		case EQU:
+		case NEQ:
+		case LEQ:
+		case LES:
+			/* use op1 and op2, def op0 */			
+		case NEG:
+		case LNOT:
+		case ASSIGN:
+		case INDIRECT_CALL:
+		case LOAD:
+			/* use op1, def op0 */			
+		case LOAD_VTBL:
+		case DIRECT_CALL:
+		case RETURN:
+		case LOAD_STR_CONST:
+		case LOAD_IMM4:
+			/* def op0 */
+			def = tac.op0;
+			break;						
+		default:
+			/* BRANCH MEMO MARK PARM*/
+			break;
+		}
+		return def;
+	}
+	public void printDUChainTo(PrintWriter pw) {
+		// TODO Auto-generated method stub
+		pw.println("FUNCTION " + functy.label.name + " : ");
+		for (BasicBlock bb : bbs) {
+			bb.printDUChainTo(pw);
+		}
+	}
 }

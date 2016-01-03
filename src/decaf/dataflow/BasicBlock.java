@@ -49,7 +49,10 @@ public class BasicBlock {
 	public Set<Temp> saves; //离开基本块时需要保存的变量集合
 
 	private List<Asm> asms; //汇编语句序列
-
+	
+	public boolean isSearched;
+	
+	public int lineNo;
 	public BasicBlock() {
 		def = new TreeSet<Temp>(Temp.ID_COMPARATOR);
 		liveUse = new TreeSet<Temp>(Temp.ID_COMPARATOR);
@@ -280,7 +283,8 @@ public class BasicBlock {
 		sb.append(']');
 		return sb.toString();
 	}
-
+	
+	
 	public void insertBefore(Tac insert, Tac base) {
 		if (base == tacList) {
 			tacList = insert;
@@ -312,5 +316,53 @@ public class BasicBlock {
 
 	public List<Asm> getAsms() {
 		return asms;
+	}
+
+	public void printDUChainTo(PrintWriter pw) {
+		// TODO Auto-generated method stub
+		lineNo=0;
+		for (Tac t = tacList; t != null; t = t.next) lineNo++;
+		lineNo++;
+		pw.println("BASIC BLOCK " + bbNum + " : ");
+		int line=0;
+		for (Tac t = tacList; t != null; t = t.next) {
+			line++;
+			if (!t.isDef) pw.println(line+":" + t + " []");
+			else pw.println(line+":" + t + " " + toString(t));
+		}
+		line++;
+		switch (endKind) {
+		case BY_BRANCH:
+			pw.println(line+":"+"END BY BRANCH, goto " + next[0]);
+			break;
+		case BY_BEQZ:
+			pw.println(line+":"+"END BY BEQZ, if " + var.name + " = ");
+			pw.println("    0 : goto " + next[0] + "; 1 : goto " + next[1]);
+			break;
+		case BY_BNEZ:
+			pw.println(line+":"+"END BY BGTZ, if " + var.name + " = ");
+			pw.println("    1 : goto " + next[0] + "; 0 : goto " + next[1]);
+			break;
+		case BY_RETURN:
+			if (var != null) {
+				pw.println(line+":"+"END BY RETURN, result = " + var.name);
+			} else {
+				pw.println(line+":"+"END BY RETURN, void result");
+			}
+			break;
+		}
+	}
+
+	private String toString(Tac t) {
+		StringBuilder sb = new StringBuilder("[ ");
+		int size = t.DU_chain.size();
+		for (int i=0; i<size; i++){
+			if (t.DU_line.get(i).intValue()==-1){
+				sb.append("BB " + t.DU_chain.get(i).bbNum + ": line "+lineNo + "; ");
+			}
+			else sb.append("BB " + t.DU_chain.get(i).bbNum + ": line " + t.DU_line.get(i) + "; ");
+		}
+		sb.append(']');
+		return sb.toString();
 	}
 }

@@ -10,7 +10,7 @@ import java.io.PrintStream;
 public final class Option {
 
 	public enum Level {
-		LEVEL0, LEVEL1, LEVEL2, LEVEL3, LEVEL4
+		LEVEL0, LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5
 	}
 
 	private String srcFileName;
@@ -77,7 +77,7 @@ public final class Option {
 				+ "        2  TAC Generation                                       \n"
 				+ "        3  Dataflow Analysis                                    \n"
 				+ "        4  Final Ouput (Mips Assembly, default)                 \n"
-				+ "                                                                \n"
+				+ "        5  DU_Chain                                             \n"
 				+ "    -o  Specifying the output file name. stdout if omitted.     \n"
 				+ "                                                                \n"
 				+ "\n");
